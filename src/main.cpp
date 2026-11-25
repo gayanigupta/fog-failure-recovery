@@ -36,7 +36,6 @@ struct Config {
   bool heavy_data = false;  // communication-dominated DAG mode
   bool skewed_infra = false;
   int n_failures = 1;       // failures per run (spaced across the makespan)
-  bool no_steiner = false;  // ablation: disable MST/Steiner-region candidates
   bool full_repair = false; // ablation: eager full-APSP rebuild per failure
 };
 
@@ -90,8 +89,6 @@ Config parse(int argc, char** argv) {
       c.skewed_infra = (next("--infra-mode") == "skewed");
     else if (a == "--n-failures")
       c.n_failures = std::stoi(next("--n-failures"));
-    else if (a == "--no-steiner")
-      c.no_steiner = true;
     else if (a == "--full-repair")
       c.full_repair = true;
     else {
@@ -123,7 +120,6 @@ int main(int argc, char** argv) {
   Config cfg = parse(argc, argv);
   if (!cfg.export_dir.empty()) mkdir(cfg.export_dir.c_str(), 0755);
   RecoveryParams rp;
-  rp.use_steiner = !cfg.no_steiner;
   SimParams sp;
   sp.replan_base_ms = rp.replan_base_ms;
   sp.replan_per_task_ms = rp.replan_per_task_ms;

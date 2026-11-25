@@ -141,31 +141,15 @@ A task with any unfinished parent *outside* `S` is anchored in place — its
 assignment cannot change. This yields the smallest region that is still
 self-consistent under dependency closure.
 
-### 4.3 Step 3 — Replacement resource shortlist `C`
+### 4.3 Step 3 — Candidate resources `C`
 
 Anchors are the tasks adjacent to `S` that stay put (completed, running, or
-waiting on healthy nodes). Each alive candidate resource `c` is scored by
-proximity to the anchors, weighted by the data volume crossing the boundary:
+waiting on healthy nodes). The candidate set `C` is every working resource:
+scoring over post-failure routes already prefers anchor-adjacent resources
+because staged-input transfer times dominate the estimate.
 
-```
-score(c) = Σ_{(a→t), t∈S, a∉S} d(a,t)·lat(node(a), c)          // parents in
-         + Σ_{(t→b), t∈S, b∉S} d(t,b)·lat(c, node(b))          // children out
-         + ε · avail(c)                                        // spare capacity
-```
-
-`C` = the **Steiner region** `R`, plus top-`k` resources by score (default
-`k = 8`), plus the nodes already hosting healthy members of `S` (the "stay"
-option).
-
-`R` is an approximate Steiner tree over the anchor nodes: build the metric
-closure of anchor resources (edge weight = route latency), take its MST
-(Prim), and expand each selected edge back into its real route. The nodes of
-that tree form a low-latency connected island around the anchors, so
-repartitioned tasks cluster near their unmoved neighbors.
-
-The recovery path therefore exercises the three canonical graph problems:
-APSP (Floyd–Warshall at init), incremental SSSP (Dijkstra lazy repair), and
-MST (Prim for the replacement region).
+The recovery path therefore exercises two canonical graph problems:
+APSP (Floyd–Warshall at init) and incremental SSSP (Dijkstra lazy repair).
 
 ### 4.4 Step 4 — Repartition `S` onto `C`
 
@@ -321,9 +305,9 @@ Expected hypotheses the experiments test:
 1. **Affected-region extraction**: boundary rule connecting a node failure in
    the infra graph to the smallest dependency-consistent region of the task
    DAG (§4.2).
-2. **Anchor-aware repartitioning**: replacement resources are shortlisted by
-   shortest-path proximity to the *unchanged* neighbors of the region (§4.3),
-   and repartitioning charges a movement penalty to any healthy task (§4.4).
+2. **Anchor-aware repartitioning**: every working resource is scored by
+   earliest finish time using post-failure routes (§4.3), and
+   repartitioning charges a movement penalty to any healthy task (§4.4).
 3. **Lazy route repair**: shortest paths are updated incrementally, only for
    routes actually queried after the failure (§4.5) — the application of
    Bhowmick-style dynamic SPT updates to workflow-DAG recovery.

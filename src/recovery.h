@@ -10,8 +10,6 @@ struct RecoveryParams {
   // when ALL of its unfinished parents are already in the subgraph (it
   // "follows" the failure); the repartitioner may still leave it in place.
   bool expand_boundary = true;
-  bool use_steiner = true;       // MST/Steiner-region replacement candidates
-  int max_candidates = 8;        // replacement resources shortlisted
   double move_penalty_ms = 50.0; // extra cost of moving a healthy-node task
   // --- replanning cost model ---
   double replan_base_ms = 5.0;
@@ -37,15 +35,15 @@ RecoveryResult recover_full(Sim& s, int failed, const RecoveryParams& rp);
 // Baseline: "affected-set repair" as used by earlier replanning work -- the
 // failed node's unfinished tasks together with every waiting descendant of
 // those tasks (the suffix of the plan the failure touches). Descendants are
-// free to relocate; there is no stay option and no region shortlist.
+// free to relocate; there is no stay option.
 RecoveryResult recover_descendants(Sim& s, int failed,
                                    const RecoveryParams& rp);
 
-// Proposed method: identify the smallest affected region of the task DAG,
-// shortlist replacement resources by shortest-path proximity to the anchor
-// tasks that stayed put, repartition only that region, and keep every other
-// assignment unchanged. Routes are repaired lazily via the incremental SPT
-// update inside InfraGraph.
+// Proposed method: identify the smallest affected region of the task DAG
+// and re-place only that region, scoring every working node by earliest
+// finish time (with a movement penalty for tasks on healthy nodes). Tasks
+// outside the region keep their assignment. Routes are repaired lazily via
+// the incremental SPT update inside InfraGraph.
 RecoveryResult recover_partial(Sim& s, int failed, const RecoveryParams& rp);
 
 // Baseline: exact optimization of the affected-subgraph assignment via

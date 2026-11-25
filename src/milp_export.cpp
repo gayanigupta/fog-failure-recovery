@@ -14,8 +14,7 @@ bool export_recovery_instance(Sim& s, int failed, int scenario,
   std::unordered_map<int, int> idx;  // task gid -> subgraph index
   for (size_t i = 0; i < sub.size(); ++i) idx[sub[i]] = (int)i;
 
-  // Candidates: all alive nodes (shortlist flag marks the heuristic's picks).
-  // Reuse the heuristic shortlist to flag preferred nodes.
+  // Candidates: all alive nodes.
   std::vector<int> cand_all;
   for (const auto& nd : s.infra.nodes)
     if (nd.alive) cand_all.push_back(nd.id);

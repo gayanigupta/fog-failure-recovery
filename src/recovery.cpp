@@ -142,94 +142,16 @@ static std::vector<int> rank_order(Sim& s, const std::vector<int>& subset,
   return ord;
 }
 
-// Approximate Steiner tree over the anchor nodes: take the MST of the
-// metric closure (anchor-pair edges weighted by route latency), then expand
-// each MST edge into its real shortest route. Nodes of that tree form the
-// preferred replacement region -- repartitioned tasks land on a low-latency
-// connected island instead of scattering across the federation.
-static std::vector<int> steiner_region(
-    Sim& s, const std::unordered_map<int, double>& vol) {
-  std::vector<int> anchors;
-  for (auto& kv : vol)
-    if (kv.first >= 0 && s.infra.alive(kv.first)) anchors.push_back(kv.first);
-  if (anchors.size() < 2) return anchors;
-
-  std::vector<Link> closure;
-  for (size_t i = 0; i < anchors.size(); ++i)
-    for (size_t j = i + 1; j < anchors.size(); ++j) {
-      double d = s.infra.route_latency(anchors[i], anchors[j]);
-      if (d < InfraGraph::INF)
-        closure.push_back({anchors[i], anchors[j], d, 1e9, 0.0});
-    }
-  InfraGraph clo;
-  clo.build(s.infra.n, s.infra.nodes, closure);
-  std::vector<int> region;
-  std::vector<char> seen(s.infra.n, 0);
-  for (int li : clo.mst())
-    for (int u : s.infra.route_path(clo.links[li].a, clo.links[li].b))
-      if (!seen[u]) {
-        seen[u] = 1;
-        region.push_back(u);
-      }
-  return region;
-}
-
-// Shortlist replacement nodes: proximity (by route latency) to the nodes
-// hosting the subgraph's anchor parents and children, plus spare capacity.
-static std::vector<int> shortlist_candidates(Sim& s,
-                                             const std::vector<int>& subset,
-                                             const RecoveryParams& rp) {
-  std::unordered_set<int> sub(subset.begin(), subset.end());
-  std::unordered_map<int, double> vol;  // anchor node -> total edge volume
-  for (int t : subset) {
-    for (int ei : s.dag->in_edges[t]) {
-      const auto& e = s.dag->edges[ei];
-      if (!sub.count(e.from)) vol[s.assign[e.from]] += e.data_mb;
-    }
-    for (int ei : s.dag->out_edges[t]) {
-      const auto& e = s.dag->edges[ei];
-      if (!sub.count(e.to)) vol[s.assign[e.to]] += e.data_mb;
-    }
-  }
-  std::vector<int> cand;
-  auto addc = [&](int u) {
-    if (u >= 0 && s.infra.alive(u) &&
-        std::find(cand.begin(), cand.end(), u) == cand.end())
-      cand.push_back(u);
-  };
-  // Steiner region first: the low-latency connected island around anchors.
-  if (rp.use_steiner)
-    for (int u : steiner_region(s, vol)) addc(u);
-  std::vector<std::pair<double, int>> score;
-  for (const auto& nd : s.infra.nodes) {
-    if (!nd.alive) continue;
-    double prox = 0.0;
-    for (auto [an, v] : vol) {
-      if (an < 0 || !s.infra.alive(an)) continue;
-      prox += v * s.infra.route_latency(an, nd.id);
-    }
-    score.push_back({prox + 0.01 * s.node_free[nd.id], nd.id});
-  }
-  std::sort(score.begin(), score.end());
-  int n_scored = 0;
-  for (auto& kv : score) {
-    if (n_scored >= rp.max_candidates) break;
-    if (std::find(cand.begin(), cand.end(), kv.second) == cand.end()) {
-      cand.push_back(kv.second);
-      ++n_scored;
-    }
-  }
-  // Always keep the nodes already hosting healthy subset tasks (stay option).
-  for (int t : subset) addc(s.assign[t]);
-  return cand;
-}
-
 RecoveryResult recover_partial(Sim& s, int failed, const RecoveryParams& rp) {
   double t0 = wall_now();
   auto sub = affected_subgraph(s, failed, rp.expand_boundary);
   std::vector<char> in(s.dag->n, 0);
   for (int t : sub) in[t] = 1;
-  auto cand = shortlist_candidates(s, sub, rp);
+  // Score every working node: post-failure transfer times already favour
+  // resources adjacent to the anchors.
+  std::vector<int> cand;
+  for (const auto& nd : s.infra.nodes)
+    if (nd.alive) cand.push_back(nd.id);
   auto order = rank_order(s, sub, in);
   auto na = local_list_schedule(s, in, cand, order, rp.move_penalty_ms);
 

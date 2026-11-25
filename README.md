@@ -34,8 +34,7 @@ make test
 Options: `--seeds N`, `--tasks a,b,c`, `--nodes N`, `--fail-fracs x,y`,
 `--deadline-factor F`, `--no-optimal`, `--seed S`, `--out FILE`,
 `--dag-mode heavy`, `--infra-mode skewed`, `--n-failures K`,
-`--export-milp DIR`. Ablations: `--no-steiner` (plain scored shortlist
-instead of the MST/Steiner region) and `--full-repair` (eager rebuild of
+`--export-milp DIR`. Ablation: `--full-repair` (eager rebuild of
 all SPT rows on every failure instead of lazy incremental repair).
 
 ## MILP baseline (Python, scipy/HiGHS)
@@ -53,11 +52,10 @@ schedule quality (makespan relative to the no-failure run).
 
 ## Strategies compared
 
-- `partial` — proposed method: affected-subgraph extraction, Steiner-region
-  replacement candidates (MST over the anchor metric closure, Prim),
-  constrained repartition, lazy SPT repair. Built on the three canonical
-  graph primitives: APSP (Floyd-Warshall), incremental SSSP (Dijkstra),
-  MST (Prim)
+- `partial` — proposed method: affected-subgraph extraction, constrained
+  repartition scoring every working node by earliest finish (movement
+  penalty for healthy tasks), lazy SPT repair. Built on two canonical
+  graph primitives: APSP (Floyd-Warshall) and incremental SSSP (Dijkstra)
 - `full` — complete repartition/reschedule of all unfinished tasks
 - `desc` — local repair of the failed node's tasks plus all their pending
   descendants (affected-set replanning as in prior work)
